@@ -1,0 +1,7 @@
+{
+  "name": "Genosym AI",
+  "description": "A comprehensive rare disease analysis and diagnosis platform featuring role-based access, multi-modal data visualization, and AI-powered insights via Gemini.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
