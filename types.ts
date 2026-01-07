@@ -1,4 +1,9 @@
 
+/**
+ * Defines the various types of medical data analysis supported by the platform.
+ */
+export type AnalysisType = 'Genomic' | 'Proteomic' | 'Imaging' | 'EHR' | 'SHAP' | 'Federated';
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   HOSPITAL_ADMIN = 'HOSPITAL_ADMIN',
@@ -56,21 +61,36 @@ export interface PatientCase {
   lastUpdated: string;
   consentStatus: boolean;
   timeline: TimelineEvent[];
-  demographics?: { 
-    dob: string;
-    contact?: string;
-  }
 }
 
-export enum AnalysisType {
-  GENOMIC = 'Genomic',
-  PROTEOMIC = 'Proteomic',
-  BIOMARKER = 'Biomarker',
-  NEUROLOGY = 'Neurology',
-  EHR = 'EHR',
-  IMAGING = 'Imaging',
-  SHAP = 'SHAP Analysis',
-  FEDERATED = 'Federated Learning'
+export interface Variant {
+  gene: string;
+  mutation: string;
+  classification: 'Pathogenic' | 'Likely Pathogenic' | 'VUS';
+  associatedPhenotype: string;
+  orphanetLink: string;
+  zygosity: 'Heterozygous' | 'Homozygous';
+}
+
+export interface ClinicalBiomarker {
+  name: string;
+  value: number;
+  unit: string;
+  referenceRange: string;
+  status: 'Normal' | 'High' | 'Low' | 'Critical High' | 'Critical Low';
+}
+
+export interface MultiModalAnalysis {
+  hasGenomic: boolean;
+  hasProteomic: boolean;
+  hasImaging: boolean;
+  variants: Variant[];
+  clinicalBiomarkers: ClinicalBiomarker[];
+  proteomics: { protein: string; foldChange: number; pValue: number; isSignificant: boolean }[];
+  predictions: { diseaseName: string; probability: number; ordoId: string; description: string }[];
+  shapValues: { feature: string; impact: number; category: string }[];
+  diseaseProfile: { name: string; pathway: string[]; treatment: string[]; riskLevel: string; summary: string; explainability: string };
+  ehrSummary: string;
 }
 
 export interface Log {
@@ -84,14 +104,9 @@ export enum AuditAction {
   LOGIN_SUCCESS = 'LOGIN_SUCCESS',
   LOGIN_FAILED = 'LOGIN_FAILED',
   VIEW_PATIENT = 'VIEW_PATIENT',
-  EXPORT_DATA = 'EXPORT_DATA',
-  CREATE_CASE = 'CREATE_CASE',
   APPROVE_USER = 'APPROVE_USER',
   DENY_USER = 'DENY_USER',
-  APPROVE_HOSPITAL = 'APPROVE_HOSPITAL',
-  DENY_HOSPITAL = 'DENY_HOSPITAL',
-  SYSTEM_CONFIG = 'SYSTEM_CONFIG',
-  UNAUTHORIZED_ACCESS = 'UNAUTHORIZED_ACCESS'
+  APPROVE_HOSPITAL = 'APPROVE_HOSPITAL'
 }
 
 export interface AuditLogEntry {
@@ -100,81 +115,9 @@ export interface AuditLogEntry {
   userEmail: string;
   userRole: UserRole | 'UNKNOWN';
   action: AuditAction;
-  resourceId?: string;
-  caseId?: string;
-  ipAddress: string;
   status: 'SUCCESS' | 'FAILURE' | 'SUSPICIOUS';
   details: string;
-}
-
-export interface Variant {
-  gene: string;
-  mutation: string;
-  classification: 'Pathogenic' | 'Likely Pathogenic' | 'VUS';
-  associatedPhenotype: string;
-  orphanetLink: string;
-  zygosity: 'Heterozygous' | 'Homozygous';
-  caddScore?: number;
-}
-
-export interface ClinicalBiomarker {
-  name: string;
-  value: number;
-  unit: string;
-  referenceRange: string;
-  status: 'Normal' | 'High' | 'Low' | 'Critical High' | 'Critical Low';
-  description?: string;
-}
-
-export interface ProteomicData {
-  protein: string;
-  foldChange: number;
-  pValue: number;
-  isSignificant: boolean;
-}
-
-export interface GraphNode {
-  id: string;
-  label: string;
-  type: 'Gene' | 'Biomarker' | 'Symptom' | 'Imaging' | 'Disease';
-  x: number;
-  y: number;
-}
-
-export interface GraphLink {
-  source: string;
-  target: string;
-}
-
-export interface PredictionResult {
-  diseaseName: string;
-  probability: number;
-  ordoId: string;
-  confidenceInterval: [number, number];
-  description: string;
-}
-
-export interface DiseaseProfile {
-  name: string;
-  pathway: string[];
-  treatment: string[];
-  riskLevel: 'High' | 'Moderate' | 'Low';
-  summary: string;
-  explainability: string;
-}
-
-export interface MultiModalAnalysis {
-  hasGenomic: boolean;
-  hasProteomic: boolean;
-  hasImaging: boolean;
-  variants: Variant[];
-  clinicalBiomarkers: ClinicalBiomarker[];
-  proteomics: ProteomicData[];
-  predictions: PredictionResult[];
-  shapValues: { feature: string; impact: number; category: string }[];
-  knowledgeGraph: { nodes: GraphNode[]; links: GraphLink[] };
-  diseaseProfile: DiseaseProfile;
-  ehrSummary: string;
+  ipAddress: string;
 }
 
 export interface FederatedNode {
