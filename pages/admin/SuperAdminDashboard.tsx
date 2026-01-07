@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getHospitals, approveHospital, getSystemAnalytics, getAuditLogs, getActionDiary, getUsers } from '../../services/mockBackend';
 import { Hospital, RegistrationStatus, AuditLogEntry, User } from '../../types';
-import { Building2, AlertTriangle, FileCheck, Eye, BookOpen, ShieldAlert, TrendingUp, BarChart3, Users, Mail, UserCheck, Search, Filter, X, MapPin, Phone, Calendar, FileText, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Building2, AlertTriangle, FileCheck, Eye, BookOpen, ShieldAlert, TrendingUp, BarChart3, Users, Mail, UserCheck, Search, Filter, X, MapPin, Phone, Calendar, FileText, CheckCircle, ShieldCheck, Printer, Download, RefreshCw, Activity, Lock } from 'lucide-react';
 import { CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis, BarChart, Bar, Cell } from 'recharts';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const GROWTH_DATA = [
   { name: 'Week 1', hospitals: 1, activity: 10 },
@@ -25,8 +27,10 @@ const SuperAdminDashboard = () => {
   
   const [decisionModal, setDecisionModal] = useState<{ isOpen: boolean, id: string | null, type: 'APPROVE' | 'REJECT' }>({ isOpen: false, id: null, type: 'APPROVE' });
   const [viewModal, setViewModal] = useState<{ isOpen: boolean, hospital: Hospital | null }>({ isOpen: false, hospital: null });
-  const [docReviewModal, setDocReviewModal] = useState<{ isOpen: boolean, title: string }>({ isOpen: false, title: '' });
+  const [docReviewModal, setDocReviewModal] = useState<{ isOpen: boolean, title: string, context?: { name: string, hospital?: string, id?: string } }>({ isOpen: false, title: '' });
   const [decisionReason, setDecisionReason] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const licenseRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(() => {
     const allHospitals = getHospitals();
@@ -43,14 +47,30 @@ const SuperAdminDashboard = () => {
     window.addEventListener('usersUpdated', fetchData);
     window.addEventListener('diaryUpdated', fetchData);
     window.addEventListener('logUpdated', fetchData);
-    const interval = setInterval(fetchData, 3000);
     return () => {
       window.removeEventListener('usersUpdated', fetchData);
       window.removeEventListener('diaryUpdated', fetchData);
       window.removeEventListener('logUpdated', fetchData);
-      clearInterval(interval);
     };
   }, [fetchData]);
+
+  const handleDownloadLicense = async () => {
+    if (!licenseRef.current) return;
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(licenseRef.current, { scale: 3, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const width = pdf.internal.pageSize.getWidth();
+      const height = (canvas.height * width) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+      pdf.save(`Credential_${docReviewModal.context?.name?.replace(/\s+/g, '_')}_${docReviewModal.context?.id}.pdf`);
+    } catch (err) {
+      console.error("PDF Export failed", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const openDecisionModal = (id: string, type: 'APPROVE' | 'REJECT') => {
     setDecisionModal({ isOpen: true, id, type });
@@ -107,7 +127,6 @@ const SuperAdminDashboard = () => {
               <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Health</p><p className="text-3xl font-black text-slate-900 tracking-tighter">ACTIVE</p></div>
             </div>
           </div>
-          {/* Charts Area */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
                <h3 className="text-lg font-black text-slate-800 mb-8 flex items-center gap-3 uppercase tracking-tighter">
@@ -211,7 +230,103 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      {/* Hospital Detailed View Modal */}
+      {activeTab === 'USERS' && (
+        <div className="space-y-6 animate-fade-in">
+           <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
+              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter mb-8 flex items-center gap-3">
+                 <Users className="w-6 h-6 text-primary-600" /> Platform User Directory
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {allUsers.map((u, i) => (
+                    <div key={i} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:bg-white hover:shadow-lg transition-all group">
+                       <div className="flex items-center gap-4 mb-4">
+                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-slate-900 shadow-sm group-hover:bg-primary-600 group-hover:text-white transition-colors">{u.name.charAt(0)}</div>
+                          <div>
+                             <p className="text-sm font-black text-slate-900 leading-tight">{u.name}</p>
+                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{u.role}</p>
+                          </div>
+                       </div>
+                       <div className="space-y-2 pt-4 border-t border-slate-200">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><Mail className="w-3 h-3" /> {u.email}</p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${u.status === 'APPROVED' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                             <div className={`w-2 h-2 rounded-full ${u.status === 'APPROVED' ? 'bg-emerald-500' : 'bg-amber-500'}`} /> {u.status}
+                          </p>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'LEDGER' && (
+        <div className="space-y-6 animate-fade-in">
+           <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-4 mb-10">
+                 <div className="p-4 bg-slate-900 rounded-[1.5rem] text-white shadow-2xl"><BookOpen className="w-7 h-7" /></div>
+                 <div>
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Global Decision Diary</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform-wide Audit Log</p>
+                 </div>
+              </div>
+
+              <div className="space-y-6">
+                 {diaryEntries.map((entry, idx) => (
+                    <div key={idx} className="p-8 bg-slate-50 border border-slate-100 rounded-[2rem] flex flex-col md:flex-row justify-between items-start md:items-center gap-6 hover:bg-white hover:shadow-xl transition-all">
+                       <div className="flex items-center gap-6">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${entry.action === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                             {entry.action === 'APPROVED' ? <CheckCircle className="w-7 h-7" /> : <ShieldAlert className="w-7 h-7" />}
+                          </div>
+                          <div>
+                             <p className="text-lg font-black text-slate-900 tracking-tight">{entry.targetName}</p>
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Status: {entry.action}</p>
+                          </div>
+                       </div>
+                       <div className="flex-1 md:px-12">
+                          <p className="text-xs font-bold text-slate-500 leading-relaxed uppercase tracking-tight">Rationale: {entry.reason}</p>
+                       </div>
+                       <div className="text-right shrink-0">
+                          <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">{new Date(entry.timestamp).toLocaleDateString()}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest">{new Date(entry.timestamp).toLocaleTimeString()}</p>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {activeTab === 'AUDIT' && (
+        <div className="space-y-6 animate-fade-in">
+           <div className="bg-slate-900 text-white p-12 rounded-[3.5rem] shadow-2xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-primary-600/10 rounded-full blur-[100px]" />
+              <div className="relative z-10">
+                 <div className="flex items-center gap-5 mb-10">
+                    <div className="p-4 bg-white/10 rounded-2xl"><Activity className="w-8 h-8 text-primary-400" /></div>
+                    <h3 className="text-3xl font-black tracking-tight uppercase italic">Security Audit Ledger</h3>
+                 </div>
+                 <div className="space-y-4">
+                    {auditLogs.map((log, i) => (
+                       <div key={i} className="p-5 bg-white/5 border border-white/10 rounded-2xl flex justify-between items-center group hover:bg-white/10 transition-colors">
+                          <div className="flex items-center gap-6">
+                             <div className={`w-2 h-2 rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                             <div>
+                                <p className="text-sm font-black text-white">{log.action}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.userEmail} • {log.ipAddress}</p>
+                             </div>
+                          </div>
+                          <div className="text-right">
+                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{new Date(log.timestamp).toLocaleString()}</p>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Modals and Overlays */}
       {viewModal.isOpen && viewModal.hospital && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center z-[120] px-6">
           <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-2xl p-16 border border-slate-200 animate-scale-up relative">
@@ -234,7 +349,11 @@ const SuperAdminDashboard = () => {
               <div className="space-y-4">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verification Dossier</p>
                 <button 
-                  onClick={() => setDocReviewModal({ isOpen: true, title: viewModal.hospital?.accreditationDocument || 'VERIFY_DOC.PDF' })}
+                  onClick={() => setDocReviewModal({ 
+                    isOpen: true, 
+                    title: viewModal.hospital?.accreditationDocument || 'ACCREDITATION.PDF',
+                    context: { name: viewModal.hospital?.name || '', id: viewModal.hospital?.id }
+                  })}
                   className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl w-full hover:bg-white hover:border-primary-200 transition group"
                 >
                   <FileText className="w-6 h-6 text-primary-600 group-hover:scale-110 transition" />
@@ -260,7 +379,6 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      {/* Final Decision Modal */}
       {decisionModal.isOpen && (
         <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-xl flex items-center justify-center z-[150] px-6">
           <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-xl p-16 border border-slate-200 animate-scale-up text-center">
@@ -280,7 +398,7 @@ const SuperAdminDashboard = () => {
               <button 
                 onClick={handleDecisionSubmit} 
                 disabled={!decisionReason.trim()} 
-                className={`flex-[2] py-6 text-white font-black uppercase text-xs tracking-[0.2em] rounded-3xl shadow-2xl transition-all active:scale-95 disabled:opacity-30 ${decisionModal.type === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30' : 'bg-red-600 hover:bg-red-700 shadow-red-500/30'}`}
+                className={`flex-[2] py-6 text-white font-black uppercase text-xs tracking-[0.2em] rounded-3xl shadow-2xl transition-all active:scale-95 disabled:opacity-30 ${decisionModal.type === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30' : 'bg-red-600 hover:bg-red-700 shadow-red-600/30'}`}
               >
                 Sign & Finalize
               </button>
@@ -289,37 +407,81 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      {/* High Fidelity Doc Reviewer Portal */}
       {docReviewModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-950/95 flex items-center justify-center z-[200] p-12">
-          <div className="bg-white rounded-[4rem] w-full max-w-5xl h-full flex flex-col shadow-2xl animate-scale-up overflow-hidden">
-             <div className="p-10 border-b flex justify-between items-center bg-slate-50">
+        <div className="fixed inset-0 bg-slate-950/95 flex items-center justify-center z-[200] p-6 lg:p-12 overflow-y-auto">
+          <div className="bg-white rounded-[4rem] w-full max-w-5xl min-h-[90vh] flex flex-col shadow-2xl animate-scale-up overflow-hidden my-auto">
+             <div className="p-10 border-b flex justify-between items-center bg-slate-900 text-white no-print">
                 <div className="flex items-center gap-4">
-                   <ShieldCheck className="w-8 h-8 text-emerald-600" />
+                   <div className="p-2 bg-emerald-600 rounded-xl"><ShieldCheck className="w-8 h-8 text-white" /></div>
                    <div>
-                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">Institutional Document Audit</h2>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Resource: {docReviewModal.title}</p>
+                     <h2 className="text-2xl font-black tracking-tight uppercase">Credential Audit Portal</h2>
+                     <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-1">Resource Archive: {docReviewModal.title}</p>
                    </div>
                 </div>
-                <button onClick={() => setDocReviewModal({ isOpen: false, title: '' })} className="p-3 bg-white border rounded-2xl hover:bg-slate-50 transition shadow-sm"><X className="w-6 h-6" /></button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={handleDownloadLicense} 
+                    disabled={isExporting}
+                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-2xl hover:bg-emerald-700 transition shadow-xl active:scale-95 disabled:opacity-50"
+                  >
+                    {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {isExporting ? 'Generating...' : 'Download PDF'}
+                  </button>
+                  <button 
+                    onClick={() => setDocReviewModal({ isOpen: false, title: '' })} 
+                    className="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition shadow-sm flex items-center gap-2"
+                  >
+                    <X className="w-6 h-6" />
+                    <span className="text-[10px] font-black uppercase tracking-widest mr-2">Close View</span>
+                  </button>
+                </div>
              </div>
-             <div className="flex-1 bg-slate-100 p-12 overflow-y-auto flex items-center justify-center">
-                <div className="w-full max-w-3xl bg-white shadow-2xl p-20 rounded-lg min-h-[800px] border relative">
-                   <div className="absolute top-10 right-10 flex gap-4">
-                     <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600"><CheckCircle className="w-8 h-8" /></div>
+             <div className="flex-1 bg-slate-100 p-8 lg:p-20 flex items-center justify-center overflow-y-auto">
+                <div ref={licenseRef} className="w-full max-w-3xl bg-white shadow-2xl p-16 lg:p-24 rounded-none border-[12px] border-slate-50 relative print:shadow-none print:border-none">
+                   <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
+                      <div className="w-[600px] h-[600px] border-[40px] border-slate-900 rounded-full flex items-center justify-center text-center">
+                        <span className="text-8xl font-black uppercase rotate-[-30deg]">OFFICIAL GENOSYM VERIFIED CREDENTIAL</span>
+                      </div>
                    </div>
-                   <div className="space-y-10">
-                     <div className="h-8 bg-slate-100 w-1/3 rounded animate-pulse"></div>
-                     <div className="space-y-4">
-                       <div className="h-4 bg-slate-50 w-full rounded animate-pulse"></div>
-                       <div className="h-4 bg-slate-50 w-full rounded animate-pulse"></div>
-                       <div className="h-4 bg-slate-50 w-5/6 rounded animate-pulse"></div>
+
+                   <div className="relative z-10 space-y-12 text-center font-serif text-slate-800">
+                     <h1 className="text-5xl font-bold tracking-tight mb-2 border-b-2 border-slate-200 pb-8">Medical Practice License <span className="text-xl block text-slate-400 mt-2 font-sans font-black uppercase tracking-widest">(Demo Only)</span></h1>
+                     <div className="grid grid-cols-1 text-left gap-8 text-xl">
+                        <div className="flex justify-between items-end border-b border-dotted border-slate-300 pb-2">
+                           <span className="font-sans font-black uppercase text-xs text-slate-400 tracking-widest">License Number:</span>
+                           <span className="font-bold">MED-FAKE-IND-1000{docReviewModal.context?.id?.slice(-1) || '1'}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-dotted border-slate-300 pb-2">
+                           <span className="font-sans font-black uppercase text-xs text-slate-400 tracking-widest">Entity / Practitioner Name:</span>
+                           <span className="font-bold text-2xl uppercase tracking-tighter">{docReviewModal.context?.name || 'Dr. Aarav Menon'}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-dotted border-slate-300 pb-2">
+                           <span className="font-sans font-black uppercase text-xs text-slate-400 tracking-widest">Affiliated Institution:</span>
+                           <span className="font-bold">{docReviewModal.context?.hospital || 'Apollo Health Centre'}</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-dotted border-slate-300 pb-2">
+                           <span className="font-sans font-black uppercase text-xs text-slate-400 tracking-widest">Issued By:</span>
+                           <span className="font-bold italic">National Medical Licensing Authority (Demo)</span>
+                        </div>
+                        <div className="flex justify-between items-end border-b border-dotted border-slate-300 pb-2">
+                           <span className="font-sans font-black uppercase text-xs text-slate-400 tracking-widest">Validity:</span>
+                           <span className="font-bold">01-Jan-2025 to 31-Dec-2030</span>
+                        </div>
                      </div>
-                     <div className="h-64 bg-slate-50 w-full rounded-xl flex items-center justify-center border-2 border-dashed border-slate-200">
-                       <ShieldAlert className="w-20 h-20 text-slate-200" />
+                     <div className="pt-12 text-sm text-slate-400 italic font-sans leading-relaxed">
+                        "This license is auto-generated for academic demonstration and testing purposes only. It is not a real medical license and holds no legal validity within any jurisdiction."
                      </div>
-                     <div className="text-center pt-12">
-                        <p className="text-xs font-mono text-slate-400 font-bold uppercase tracking-widest">--- END OF OFFICIAL ACCREDITATION DOSSIER ---</p>
+                     <div className="pt-16 flex justify-between items-center px-10">
+                        <div className="text-left">
+                           <div className="w-64 border-b border-slate-900 mb-2"></div>
+                           <p className="text-[10px] font-black font-sans uppercase tracking-widest text-slate-400">Authorized Digital Signature</p>
+                        </div>
+                        <div className="text-right">
+                           <div className="w-32 h-32 border-4 border-slate-100 rounded-2xl flex items-center justify-center p-4">
+                              <span className="text-[10px] font-black font-sans text-slate-300 uppercase leading-tight">[DEMO SEAL]</span>
+                           </div>
+                           <p className="text-[10px] font-black font-sans uppercase tracking-widest text-slate-400 mt-2">Official Seal</p>
+                        </div>
                      </div>
                    </div>
                 </div>

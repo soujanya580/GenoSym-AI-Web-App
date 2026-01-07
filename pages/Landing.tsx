@@ -34,7 +34,7 @@ const Landing = () => {
     // Use the special landing page context
     const response = await chatWithMedora(chatHistory, userMsg, 'simple', 'LANDING_PAGE_CONTEXT');
     
-    setChatHistory(prev => [...prev, { role: 'model', text: response || "I'm having trouble connecting." }]);
+    setChatHistory(prev => [...prev, { role: 'model', text: response.text || "I'm having trouble connecting." }]);
     setLoading(false);
   };
 

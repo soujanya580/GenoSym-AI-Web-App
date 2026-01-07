@@ -80,6 +80,11 @@ export interface ClinicalBiomarker {
   status: 'Normal' | 'High' | 'Low' | 'Critical High' | 'Critical Low';
 }
 
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface MultiModalAnalysis {
   hasGenomic: boolean;
   hasProteomic: boolean;

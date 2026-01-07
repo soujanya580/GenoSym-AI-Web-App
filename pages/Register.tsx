@@ -20,9 +20,9 @@ const Register = () => {
     password: '',
     confirmPassword: '',
     contactNumber: '',
-    hospitalInput: '', // Unified input for typing or selecting
-    hospitalName: '', // For Hospital Admin
-    address: '' // For Hospital Admin
+    hospitalInput: '', 
+    hospitalName: '', 
+    address: '' 
   });
   const [file, setFile] = useState<File | null>(null);
   
@@ -31,14 +31,26 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Only show APPROVED hospitals for doctors to join
+    // Load pre-existing Indian hospitals + user registered ones
+    // FIX: Include PENDING hospitals so doctors can select them before the hospital itself is approved.
     const allHospitals = getHospitals();
-    setHospitals(allHospitals.filter(h => h.status === RegistrationStatus.APPROVED));
+    setHospitals(allHospitals.filter(h => h.status !== RegistrationStatus.REJECTED));
     
     if (state && state.mode === 'HOSPITAL') {
       setRole(UserRole.HOSPITAL_ADMIN);
     }
+
+    // Optional: Load draft from localStorage if user re-visits during same session
+    const draft = localStorage.getItem('genosym_registration_draft');
+    if (draft) {
+      setFormData(prev => ({ ...prev, ...JSON.parse(draft) }));
+    }
   }, [state]);
+
+  // Persist form draft as user types
+  useEffect(() => {
+    localStorage.setItem('genosym_registration_draft', JSON.stringify(formData));
+  }, [formData]);
 
   const validate = () => {
     const newErrors: {[key: string]: string} = {};
@@ -85,13 +97,9 @@ const Register = () => {
           fileName
         );
       } else {
-        // Find matching hospital ID if possible - using case-insensitive match
+        // Find hospital even if it's PENDING
         const matchedHospital = hospitals.find(h => h.name.toLowerCase().trim() === formData.hospitalInput.toLowerCase().trim());
-        
-        // If doctor selects a hospital not in the list, we still allow registration
-        // but it might not show up for any specific admin until approved manually.
-        // To fix the "not visible" issue, we MUST ensure hospitalId matches the admin's hospitalId.
-        const hospitalId = matchedHospital ? matchedHospital.id : `legacy_${Date.now()}`;
+        const hospitalId = matchedHospital ? matchedHospital.id : `new_inst_${Date.now()}`;
         
         await registerDoctor(
           formData.fullName,
@@ -102,6 +110,8 @@ const Register = () => {
           fileName
         );
       }
+      // Clear draft on success
+      localStorage.removeItem('genosym_registration_draft');
       setSuccess(true);
     } catch (err: any) {
       console.error("Registration failed:", err);
@@ -126,10 +136,10 @@ const Register = () => {
           </div>
           <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Identity Saved</h2>
           <p className="text-slate-600 mb-10 leading-relaxed font-medium">
-            Your application and credentials have been securely saved to the platform. 
+            Your application and credentials have been securely saved. 
             {role === UserRole.HOSPITAL_ADMIN 
-              ? " Platform administrators have been notified of your registration request." 
-              : " Your hospital medical director has been notified for staff verification."}
+              ? " Our platform leads have been notified for your institution's verification." 
+              : " Your medical director will receive an automated notification for verification."}
           </p>
           <button 
             onClick={() => navigate('/login')}
@@ -162,7 +172,7 @@ const Register = () => {
           <div>
             <h1 className="text-5xl font-black tracking-tighter mb-4">Onboarding</h1>
             <p className="text-slate-400 text-xl font-medium leading-relaxed max-w-md mx-auto">
-              Registering your profile secures your credentials for federated medical inquiry.
+              Choose your institutional profile or medical identity.
             </p>
           </div>
         </div>
@@ -172,7 +182,7 @@ const Register = () => {
         <div className="max-w-xl w-full bg-white rounded-[3rem] shadow-sm border border-slate-200 p-12">
           <div className="mb-12 text-center">
             <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Register Profile</h2>
-            <p className="text-slate-500 mt-2 font-bold uppercase text-xs tracking-widest">Saving encrypted identity to platform</p>
+            <p className="text-slate-500 mt-2 font-bold uppercase text-xs tracking-widest">Securing your medical credentials</p>
           </div>
 
           {errors.general && (
@@ -184,7 +194,7 @@ const Register = () => {
 
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="space-y-4">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] block ml-1">Account Category</label>
+              <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] block ml-1">Profile Category</label>
               <div className="grid grid-cols-2 gap-4">
                 <button 
                   type="button"
@@ -194,7 +204,7 @@ const Register = () => {
                   <div className={`p-3 rounded-2xl ${role === UserRole.DOCTOR ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
                     <Stethoscope className="w-8 h-8" />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-widest">Doctor</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Medical Staff</span>
                 </button>
                 <button 
                   type="button"
@@ -204,7 +214,7 @@ const Register = () => {
                   <div className={`p-3 rounded-2xl ${role === UserRole.HOSPITAL_ADMIN ? 'bg-primary-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
                     <Building2 className="w-8 h-8" />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-widest">Hospital</span>
+                  <span className="text-xs font-black uppercase tracking-widest">Institution Admin</span>
                 </button>
               </div>
             </div>
@@ -224,20 +234,23 @@ const Register = () => {
 
               {role === UserRole.DOCTOR ? (
                 <div>
-                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Select Hospital</label>
-                  <input 
-                    list="hospital-list"
-                    type="text"
-                    className={`w-full p-4 bg-white border-2 ${errors.hospitalInput ? 'border-red-300' : 'border-slate-100'} rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none transition text-slate-900 font-black appearance-none cursor-pointer`}
-                    placeholder="Search approved institutions..."
-                    value={formData.hospitalInput}
-                    onChange={e => setFormData({...formData, hospitalInput: e.target.value})}
-                  />
-                  <datalist id="hospital-list">
-                    {hospitals.map(h => (
-                      <option key={h.id} value={h.name}>{h.name}</option>
-                    ))}
-                  </datalist>
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Institutional Affiliation (Search or Type)</label>
+                  <div className="relative">
+                    <input 
+                      list="hospital-list"
+                      type="text"
+                      className={`w-full p-4 bg-white border-2 ${errors.hospitalInput ? 'border-red-300' : 'border-slate-100'} rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none transition text-slate-900 font-black appearance-none`}
+                      placeholder="Start typing institution name..."
+                      value={formData.hospitalInput}
+                      onChange={e => setFormData({...formData, hospitalInput: e.target.value})}
+                    />
+                    <datalist id="hospital-list">
+                      {hospitals.map(h => (
+                        <option key={h.id} value={h.name}>{h.name}</option>
+                      ))}
+                    </datalist>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase tracking-widest italic ml-1">*Includes PENDING and APPROVED institutions</p>
                   {errors.hospitalInput && <p className="text-[10px] text-red-600 font-black mt-2 uppercase tracking-tight ml-1">{errors.hospitalInput}</p>}
                 </div>
               ) : (
@@ -309,7 +322,7 @@ const Register = () => {
                 <input 
                   type="tel" 
                   className={`w-full p-4 bg-slate-50 border ${errors.contactNumber ? 'border-red-300' : 'border-slate-200'} rounded-2xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none transition text-slate-900 font-black`}
-                  placeholder="+1 (000) 000-0000"
+                  placeholder="+91 (000) 000-0000"
                   value={formData.contactNumber}
                   onChange={e => setFormData({...formData, contactNumber: e.target.value})}
                 />
@@ -318,12 +331,12 @@ const Register = () => {
 
               <div>
                 <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">
-                  {role === UserRole.DOCTOR ? 'Verification License (PDF)' : 'Accreditation Certification (PDF)'}
+                  {role === UserRole.DOCTOR ? 'Medical License (PDF)' : 'Institution Accreditation (PDF)'}
                 </label>
                 <div className={`relative border-2 border-dashed ${errors.file ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'} rounded-3xl p-10 hover:bg-white transition-all duration-300 text-center cursor-pointer group shadow-inner`}>
                   <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} accept="application/pdf" />
                   <Upload className={`w-12 h-12 mx-auto mb-3 transition-transform group-hover:-translate-y-1 ${errors.file ? 'text-red-400' : 'text-slate-300 group-hover:text-primary-500'}`} />
-                  <p className="text-sm font-black text-slate-600 uppercase tracking-tighter">{file ? file.name : "Select Certification PDF"}</p>
+                  <p className="text-sm font-black text-slate-600 uppercase tracking-tighter">{file ? file.name : "Select Certification Document"}</p>
                 </div>
                 {errors.file && <p className="text-[10px] text-red-600 font-black mt-2 uppercase tracking-tight ml-1">{errors.file}</p>}
               </div>
@@ -337,15 +350,15 @@ const Register = () => {
               {isSubmitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  SAVING...
+                  PROCESSING...
                 </>
-              ) : 'Submit Registration'}
+              ) : 'Finalize Registration'}
             </button>
           </form>
           
           <div className="mt-12 text-center">
              <p className="text-sm text-slate-500 font-bold uppercase tracking-widest">
-               Already have account? <Link to="/login" className="text-primary-600 hover:underline">Log In</Link>
+               Already registered? <Link to="/login" className="text-primary-600 hover:underline">Log In</Link>
              </p>
           </div>
         </div>
