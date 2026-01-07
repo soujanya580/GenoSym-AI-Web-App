@@ -20,9 +20,10 @@ const FederatedNetwork = () => {
 
   useEffect(() => {
     const data = getFederatedData();
-    setNodes(data.nodes);
+    // Added type assertions to fix Union Type incompatibility with mock data
+    setNodes(data.nodes as FederatedNode[]);
     setMetrics(data.metrics);
-    setLogs(data.logs);
+    setLogs(data.logs as FederatedLog[]);
     setGlobalRound(data.metrics.length);
   }, []);
 

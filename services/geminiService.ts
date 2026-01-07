@@ -2,13 +2,16 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import { AnalysisType } from '../types';
 
-// Helper to get client safely (handling key availability)
+/**
+ * Helper to get client safely (handling key availability).
+ * Uses named parameter and direct process.env.API_KEY as per guidelines.
+ */
 const getClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     throw new Error("API Key not found in environment");
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const generateCaseAnalysis = async (
@@ -100,7 +103,8 @@ export const chatWithMedora = async (
     }
 
     const chat = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      // Use pro model for complex diagnostic discussions
+      model: 'gemini-3-pro-preview',
       config: {
         systemInstruction: systemInstruction
       },
@@ -115,14 +119,29 @@ export const chatWithMedora = async (
   }
 };
 
-// Manual PCM Decoder for Gemini TTS Raw Output
-function decodePCM(
+/**
+ * Manual Base64 decoding following the guideline examples.
+ */
+function decodeBase64(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Manual PCM Decoder for Gemini TTS Raw Output.
+ * Gemini 2.5 Flash TTS typically uses a 24kHz sample rate.
+ */
+async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
-  sampleRate: number = 24000,
-  numChannels: number = 1
-): AudioBuffer {
-  // Convert Uint8Array to Int16Array (16-bit PCM)
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
   const dataInt16 = new Int16Array(data.buffer);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
@@ -130,7 +149,6 @@ function decodePCM(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
-      // Normalize Int16 to Float32 [-1.0, 1.0]
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }
@@ -156,17 +174,11 @@ export const synthesizeSpeech = async (text: string): Promise<AudioBuffer | null
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) return null;
 
-    const binaryString = atob(base64Audio);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
+    const bytes = decodeBase64(base64Audio);
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     
     // Use manual PCM decoding instead of native decodeAudioData because Gemini returns raw PCM without headers
-    const audioBuffer = decodePCM(bytes, audioContext, 24000);
+    const audioBuffer = await decodeAudioData(bytes, audioContext, 24000, 1);
     
     return audioBuffer;
   } catch (error) {

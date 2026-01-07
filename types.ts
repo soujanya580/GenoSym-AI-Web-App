@@ -15,11 +15,12 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
-  hospitalId?: string; // For Hospital Admins and Doctors
+  hospitalId?: string; 
   status: RegistrationStatus;
-  password?: string; // Mock only
+  password?: string; 
   contactNumber?: string;
-  licenseDocument?: string; // Mock file name/url
+  licenseDocument?: string;
+  rejectionReason?: string;
 }
 
 export interface Hospital {
@@ -30,7 +31,8 @@ export interface Hospital {
   status: RegistrationStatus;
   registeredAt: string;
   contactNumber?: string;
-  accreditationDocument?: string; // Mock file name/url
+  accreditationDocument?: string;
+  rejectionReason?: string;
 }
 
 export interface TimelineEvent {
@@ -78,8 +80,6 @@ export interface Log {
   timestamp: string;
 }
 
-// --- Audit & Compliance Types ---
-
 export enum AuditAction {
   LOGIN_SUCCESS = 'LOGIN_SUCCESS',
   LOGIN_FAILED = 'LOGIN_FAILED',
@@ -87,6 +87,9 @@ export enum AuditAction {
   EXPORT_DATA = 'EXPORT_DATA',
   CREATE_CASE = 'CREATE_CASE',
   APPROVE_USER = 'APPROVE_USER',
+  DENY_USER = 'DENY_USER',
+  APPROVE_HOSPITAL = 'APPROVE_HOSPITAL',
+  DENY_HOSPITAL = 'DENY_HOSPITAL',
   SYSTEM_CONFIG = 'SYSTEM_CONFIG',
   UNAUTHORIZED_ACCESS = 'UNAUTHORIZED_ACCESS'
 }
@@ -97,14 +100,12 @@ export interface AuditLogEntry {
   userEmail: string;
   userRole: UserRole | 'UNKNOWN';
   action: AuditAction;
-  resourceId?: string; // Patient ID or Hospital ID
+  resourceId?: string;
   caseId?: string;
   ipAddress: string;
   status: 'SUCCESS' | 'FAILURE' | 'SUSPICIOUS';
   details: string;
 }
-
-// --- Advanced Analysis Types ---
 
 export interface Variant {
   gene: string;
@@ -158,6 +159,8 @@ export interface DiseaseProfile {
   pathway: string[];
   treatment: string[];
   riskLevel: 'High' | 'Moderate' | 'Low';
+  summary: string;
+  explainability: string;
 }
 
 export interface MultiModalAnalysis {
@@ -165,8 +168,8 @@ export interface MultiModalAnalysis {
   hasProteomic: boolean;
   hasImaging: boolean;
   variants: Variant[];
-  clinicalBiomarkers: ClinicalBiomarker[]; // For specific charts (Bar/Gauge)
-  proteomics: ProteomicData[]; // For volcano plots
+  clinicalBiomarkers: ClinicalBiomarker[];
+  proteomics: ProteomicData[];
   predictions: PredictionResult[];
   shapValues: { feature: string; impact: number; category: string }[];
   knowledgeGraph: { nodes: GraphNode[]; links: GraphLink[] };
@@ -174,14 +177,12 @@ export interface MultiModalAnalysis {
   ehrSummary: string;
 }
 
-// --- Federated Learning Types ---
-
 export interface FederatedNode {
   id: string;
   hospitalName: string;
   status: 'Online' | 'Training' | 'Syncing' | 'Offline';
   lastUpdate: string;
-  contributionCount: number; // Number of parameter updates contributed
+  contributionCount: number;
   region: string;
 }
 
@@ -197,6 +198,6 @@ export interface FederatedLog {
   nodeId: string;
   hospitalName: string;
   action: 'Gradient Upload' | 'Model Download' | 'Aggregation' | 'Validation';
-  size: string; // e.g. "2.4 MB" (Weights only)
+  size: string;
   timestamp: string;
 }
